@@ -107,7 +107,7 @@ end
 
 
 if __FILE__ == $0
-  # This file is being invoked directy from command line (i.e., ruby path.rb)
+  # This file is being invoked directy from command line (i.e., ruby path_finder.rb)
 
   if ARGV.size != 1
     puts "Please provide a single argument, the path to the dictionary file."
