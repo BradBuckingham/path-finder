@@ -1,91 +1,148 @@
 require 'set'
 require 'pp'
 
-DICT_FILE = "dictionary.txt"
-MIN_WORD_SIZE = 2
-MAX_WORD_SIZE = 5
-A_TO_Z = ('a'..'z')
+class PathFinder
+  A_TO_Z = ('a'..'z')
 
-words = Set.new(File.readlines(DICT_FILE).map{|line| line.chomp})
+  attr_reader :min_word_size, :max_word_size
 
-word_graphs = {}
+  def initialize(dictionary_file)
+    dict_lines = File.readlines(dictionary_file).map do |line|
+      line.chomp!
+      @min_word_size = [@min_word_size, line.size].compact.min
+      @max_word_size = [@max_word_size, line.size].compact.max
 
-(MIN_WORD_SIZE..MAX_WORD_SIZE).each do |word_size|
-  word_graphs[word_size] = {}
+      line
+    end
+    @dictionary_words = Set.new(dict_lines)
+    @word_graphs = {}
 
-  words.select {|w| w.size == word_size}.each do |word|
-    neighbors = []
-    word_graphs[word_size][word] = neighbors
+    build_word_graphs
+  end
 
-    (0...word_size).each do |index|
-      A_TO_Z.select {|letter| letter != word[index]}.each do |new_letter|
-        new_word = String.new(word)
-        new_word[index] = new_letter
+  def build_word_graphs
+    (@min_word_size..@max_word_size).each do |word_size|
+      @word_graphs[word_size] = {}
 
-        neighbors << new_word if words.include? new_word
+      @dictionary_words.select {|w| w.size == word_size}.each do |word|
+        neighbors = []
+        @word_graphs[word_size][word] = neighbors
+
+        (0...word_size).each do |index|
+          A_TO_Z.select {|letter| letter != word[index]}.each do |new_letter|
+            new_word = String.new(word)
+            new_word[index] = new_letter
+
+            neighbors << new_word if @dictionary_words.include? new_word
+          end
+        end
       end
     end
   end
-end
 
-#pp word_graphs
-puts "Done building word graphs."
+  def find_shortest_path(start_word, end_word)
 
-#
-# Take input and try to find shortest path
+    # parameters should be validated before entering this method
+    # so we bail if either word is invalid
+    exit 1 unless validate_words(start_word, end_word)
 
-print "Start word: "
-start_word = gets.chomp.downcase
+    my_word_graph = @word_graphs[start_word.size]
+    bfs_queue = [start_word]
+    breadcrumbs = {start_word => nil}
+    visited_words = []
 
-print "End word: "
-end_word = gets.chomp.downcase
+    until bfs_queue.empty? do
+      cur_word = bfs_queue.shift
 
-if start_word.size != end_word.size
-  puts "Words must be of the same length!"
-  exit 1
-end
+      # We've found the end_word! Return full path by traversing back up through
+      # the breadcrumbs until we find start_word (i.e., when we've found the root
+      # aka, word with nil parent pointer)
+      if cur_word == end_word
+        found_path = []
+        until cur_word.nil?
+          found_path << cur_word
+          cur_word = breadcrumbs[cur_word]
+        end
 
-if start_word.size < MIN_WORD_SIZE || start_word.size > MAX_WORD_SIZE
-  puts "Words must be longer than #{MIN_WORD_SIZE} characters and shorter than #{MAX_WORD_SIZE} characters"
-  exit 1
-end
+        return found_path.reverse
+      end
 
-unrecognized_words = [start_word, end_word].reject {|w| words.include? w}
-unless unrecognized_words.empty?
-  puts "Unrecognized word(s): " + unrecognized_words.join(", ")
-  exit 1
-end
+      visited_words << cur_word
 
-word_graph = word_graphs[start_word.size]
-bfs_queue = [start_word]
-breadcrumbs = {start_word => nil}
-visited_words = []
+      # We don't enqueue _all_ of cur_word's neighbors into the bfs_queue. We
+      # remove already-visited neighbors (else we'll loop indefinitely) and words
+      # that are already enqueued (else we'll waste time revisiting some words)
+      unvisited_neighbors = my_word_graph[cur_word] - visited_words - bfs_queue
 
-until bfs_queue.empty? do
-  cur_word = bfs_queue.shift
+      # Record breadcrumbs so we can backtrack when end_word is successfully found
+      unvisited_neighbors.each {|n| breadcrumbs[n] = cur_word}
 
-  if cur_word == end_word
-    found_path = []
-    until cur_word.nil?
-      found_path << cur_word
-      cur_word = breadcrumbs[cur_word]
+      bfs_queue.concat(unvisited_neighbors)
     end
 
-    puts "  DONE: " + found_path.reverse.join(" -> ")
-    exit 0
+    return []
   end
 
-  visited_words << cur_word
+  def validate_words(start_word, end_word)
+    if start_word.size != end_word.size
+      puts "Words must be of the same length!"
+      return false
+    end
 
-  # We don't enqueue _all_ of cur_word's neighbors into the bfs_queue. We
-  # remove already-visited neighbors (else we'll loop indefinitely) and words
-  # that are already enqueued (else we'll waste time revisiting some words)
-  unvisited_neighbors = word_graph[cur_word] - visited_words - bfs_queue
+    if start_word.size < @min_word_size || start_word.size > @max_word_size
+      puts "Words must be longer than #{@min_word_size} characters and shorter than #{@max_word_size} characters"
+      return false
+    end
 
-  # Record breadcrumbs so we can backtrack when end_word is successfully found
-  unvisited_neighbors.each {|n| breadcrumbs[n] = cur_word}
+    unrecognized_words = [start_word, end_word].reject {|w| @dictionary_words.include? w}
+    unless unrecognized_words.empty?
+      puts "Unrecognized word(s): " + unrecognized_words.join(", ")
+      return false
+    end
 
-  bfs_queue.concat(unvisited_neighbors)
+    return true
+  end
 end
 
-puts "No path found from #{start_word} to #{end_word}"
+
+
+if __FILE__ == $0
+  # This file is being invoked directy from command line (i.e., ruby path.rb)
+
+  if ARGV.size != 1
+    puts "Please provide a single argument, the path to the dictionary file."
+    exit 1
+  end
+
+  dictionary_file = ARGV.shift
+  puts "Initializing PathFinder graphs with dictionary file '#{dictionary_file}'"
+
+  init_start_time = Time.now
+  path_finder = PathFinder.new(dictionary_file)
+  init_end_time = Time.now
+
+  puts "Done initializing PathFinder (#{init_end_time - init_start_time} sec)"
+
+  # Take input and try to find shortest path. To quit, use Ctrl + c
+  while(true)
+    puts
+    print "Start word: "
+    start_word = gets.chomp.downcase
+
+    print "End word: "
+    end_word = gets.chomp.downcase
+
+    next unless path_finder.validate_words(start_word, end_word)
+
+    puts "Finding shortest path from '#{start_word}' to '#{end_word}'"
+    search_start_time = Time.now
+    shortest_path = path_finder.find_shortest_path(start_word, end_word)
+    search_end_time = Time.now
+
+    if shortest_path.any?
+      puts "  PATH_FOUND (#{search_end_time - search_start_time} sec): " + shortest_path.join(" -> ")
+    else
+      puts "  NO_PATH_FOUND (#{search_end_time - search_start_time} sec)"
+    end
+  end
+end
