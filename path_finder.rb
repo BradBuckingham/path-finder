@@ -126,11 +126,13 @@ if __FILE__ == $0
   # Take input and try to find shortest path. To quit, use Ctrl + c
   while(true)
     puts
+    puts "-------------------------------------------------"
     print "Start word: "
     start_word = gets.chomp.downcase
 
-    print "End word: "
+    print "  End word: "
     end_word = gets.chomp.downcase
+    puts
 
     next unless path_finder.validate_words(start_word, end_word)
 
