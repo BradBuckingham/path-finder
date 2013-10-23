@@ -15,26 +15,21 @@ class PathFinder
       line
     end
     @dictionary_words = Set.new(dict_lines)
-    @word_graphs = {}
+    @word_graph = {}
 
-    build_word_graphs
+    build_word_graph
   end
 
-  def build_word_graphs
-    (@min_word_size..@max_word_size).each do |word_size|
-      @word_graphs[word_size] = {}
+  def build_word_graph
+    @dictionary_words.each do |word|
+      @word_graph[word] = neighbors = []
 
-      @dictionary_words.select {|w| w.size == word_size}.each do |word|
-        neighbors = []
-        @word_graphs[word_size][word] = neighbors
+      (0...(word.size)).each do |index|
+        A_TO_Z.select {|letter| letter != word[index]}.each do |new_letter|
+          new_word = String.new(word)
+          new_word[index] = new_letter
 
-        (0...word_size).each do |index|
-          A_TO_Z.select {|letter| letter != word[index]}.each do |new_letter|
-            new_word = String.new(word)
-            new_word[index] = new_letter
-
-            neighbors << new_word if @dictionary_words.include? new_word
-          end
+          neighbors << new_word if @dictionary_words.include? new_word
         end
       end
     end
@@ -46,7 +41,6 @@ class PathFinder
     # so we bail if either word is invalid
     exit 1 unless validate_words(start_word, end_word)
 
-    my_word_graph = @word_graphs[start_word.size]
     bfs_queue = [start_word]
     breadcrumbs = {start_word => nil}
     visited_words = []
@@ -72,7 +66,7 @@ class PathFinder
       # We don't enqueue _all_ of cur_word's neighbors into the bfs_queue. We
       # remove already-visited neighbors (else we'll loop indefinitely) and words
       # that are already enqueued (else we'll waste time revisiting some words)
-      unvisited_neighbors = my_word_graph[cur_word] - visited_words - bfs_queue
+      unvisited_neighbors = @word_graph[cur_word] - visited_words - bfs_queue
 
       # Record breadcrumbs so we can backtrack when end_word is successfully found
       unvisited_neighbors.each {|n| breadcrumbs[n] = cur_word}
