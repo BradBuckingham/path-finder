@@ -7,6 +7,12 @@ class PathFinder
   attr_reader :min_word_size, :max_word_size
 
   def initialize(dictionary_file)
+    build_dictionary_word_set(dictionary_file)
+    build_word_graph
+    #run_floyd_warshall
+  end
+
+  def build_dictionary_word_set(dictionary_file)
     dict_lines = File.readlines(dictionary_file).map do |line|
       line.chomp!
       @min_word_size = [@min_word_size, line.size].compact.min
@@ -15,12 +21,34 @@ class PathFinder
       line
     end
     @dictionary_words = Set.new(dict_lines)
-    @word_graph = {}
+  end
 
-    build_word_graph
+  def run_floyd_warshall
+    @dist = Hash.new(Hash.new(Float::INFINITY))
+    @next = {}
+
+    @dictionary_words.each {|w| @dist[w][w] = 0}
+
+    @word_graph.each do |word, neighbors|
+      neighbors.each {|neighbor| @dist[word][neighbor] = 1}
+    end
+
+    @dictionary_words.each do |k|
+      @dictionary_words.each do |i|
+        @dictionary_words.each do |j|
+          if @dist[i][k] + @dist[k][j] < @dist[i][j]
+            @dist[i][j] = @dist[i][k] + @dist[k][j]
+            @next[i][j] = k
+          end
+        end
+      end
+    end
+
   end
 
   def build_word_graph
+    @word_graph = {}
+
     @dictionary_words.each do |word|
       @word_graph[word] = neighbors = []
 
